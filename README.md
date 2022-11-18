@@ -12,15 +12,30 @@
             | FastSignal | GoodSignal | SimpleSignal | SuphisSignal | RobloxSignal |
 ------------------------------------------------------------------------------------
 
-**New**         ``|  0.1       |  0.5       |  0.2         |  0.3         |  2.6         |``
+**New**   
+``` 
+	|  0.1        |  0.5       |  0.2         |  0.3         |  2.6         | 
+```
 
-**Connect**   `` |  0.4       |  0.5       |  1.0         |  0.6         |  3.1         |``
+**Connect**   
+```
+	|  0.4        |  0.5       |  1.0         |  0.6         |  3.1         | 
+```
 
-**Disconnect**  ``|  0.2       |  148.5     |  3.8         |  0.9         |  41.7        |``
+**Disconnect** 
+```
+	|  0.2        |  148.5       |  3.8         |  0.9         |  41.7         | 
+```
 
-**Fire**       `` |  4.1       |  48.7      |  114.9       |  18.0        |  34.0        |``
+**Fire**        
+```
+	|  4.1        |  48.7       |  114.9         |  18.0         |  34.0         | 
+```
 
-**Wait**        ``|  4.5       |  5.0       |  6.1         |  3.3         |  6.0         |``
+**Wait** 
+```
+	|  4.5        |  5.0       |  6.1         |  3.3         |  6.0         | 
+```
 
 microseconds to complete (lower is better)
 Fire is the most important benchmark as that's what your going to be doing the most
