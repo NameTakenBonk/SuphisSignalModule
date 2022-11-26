@@ -9,17 +9,17 @@
 **Fire In Order**            Events are fired in the same order they where connected in
 **Familiar**                 Works a lot like RBXScriptSignal and RBXScriptConnection
 
-            | FastSignal | GoodSignal | SimpleSignal | SuphisSignal | RobloxSignal |
+            | FastSignal | SuphisSignal | GoodSignal  | SimpleSignal | RobloxSignal |
 ------------------------------------------------------------------------------------
 
 **New**   
 ``` 
-	|  0.1        |  0.5       |  0.2         |  0.3         |  2.6         | 
+	|  0.2        |  0.5       |  0.2         |  0.3         |  2.6         | 
 ```
 
 **Connect**   
 ```
-	|  0.4        |  0.5       |  1.0         |  0.6         |  3.1         | 
+	|  1.0        |  0.5       |  1.0         |  0.6         |  3.1         | 
 ```
 
 **Disconnect** 
