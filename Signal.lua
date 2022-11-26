@@ -1,83 +1,94 @@
--- Version: 0.2 (BETA)
+-- Version: 0.3 (BETA)
 
-local constructorMetatable = {}
-local constructor = {}
-local signalMetatable = {}
-local signal = {}
-local connectionMetatable = {}
-local connection = {}
-local permissions = {["Signal"] = false, ["Disconnect"] = false}
+local Thread, Call
+local privateIndex, signalMetatable, connectionMetatable = {}, {}, {}
+local constructor, signal, connection = {}, {}, {}
 local threads = {}
+local permissions = {["Signal"] = false, ["Disconnect"] = false}
 
 
-local function Call(thread, callback, ...)
-	callback(...)
-	table.insert(threads, thread)
-end
+-- Types
+export type Constructor = {
+	new: () -> Signal,
+}
 
-local function Thread()
-	while true do Call(coroutine.yield()) end
-end
+export type Signal = {
+	Connect: (self: Signal, func: (...any) -> ()) -> Connection,
+	Once: (self: Signal, func: (...any) -> ()) -> Connection,
+	Wait: (self: Signal) -> ...any,
+	DisconnectAll: (self: Signal) -> (),
+	Fire: (self: Signal, ...any) -> (),
+}
+
+export type Connection = {
+	Signal: Signal?,
+	Disconnect: (self: Connection) -> (),
+}
 
 
-constructorMetatable.__metatable = "nil"
-constructorMetatable.__tostring = function(proxy) return "Signal Module" end
-constructorMetatable.__newindex = function(proxy, index, value) error("attempt to modify a readonly table") end
-constructorMetatable.__index = constructor
-
-constructor.new = function()
-	local signalObject = {}
-	signalObject.Proxy = setmetatable({[signal] = signalObject}, signalMetatable)
-	return signalObject.Proxy
-end
-
-signalMetatable.__metatable = "nil"
-signalMetatable.__tostring = function(proxy) return "Signal Object" end
-signalMetatable.__newindex = function(proxy, index, value) error("attempt to modify a readonly table") end
+-- Metatables
+signalMetatable.__metatable = "The metatable is locked"
+signalMetatable.__tostring = function(proxy) return "Signal" end
+signalMetatable.__iter = function(proxy) return next, {} end
+signalMetatable.__newindex = function(proxy, index, value) error("Attempt to modify a readonly table", 2) end
 signalMetatable.__index = signal
 
+connectionMetatable.__metatable = "The metatable is locked"
+connectionMetatable.__tostring = function(proxy) return "Connection" end
+connectionMetatable.__iter = function(proxy) return next, {} end
+connectionMetatable.__newindex = function(proxy, index, value) error("Attempt to modify a readonly table", 2) end
+connectionMetatable.__index = function(proxy, index)
+	if permissions[index] == nil then return end
+	return if proxy[privateIndex][index] == nil then connection[index] else proxy[privateIndex][index]
+end
 
+
+-- Constructor
+constructor.new = function()
+	local signalObject = {}
+	return setmetatable({[privateIndex] = signalObject}, signalMetatable)
+end
+
+
+-- Signal
 signal.Connect = function(proxy, callback)
-	if type(callback) ~= "function" then error("Attempt to connect failed: Passed value is not a function") end
-	local signalObject = proxy[signal]
+	if type(callback) ~= "function" then error("Attempt to connect failed: Passed value is not a function", 2) end
+	local signalObject = proxy[privateIndex]
 	local connectionObject = {}
 	connectionObject.Signal = proxy
 	connectionObject.Callback = callback
 	connectionObject.Once = false
-	connectionObject.Proxy = setmetatable({[connection] = connectionObject}, connectionMetatable)
-	if signalObject.Last == nil then
+	if signalObject.First == nil then
 		signalObject.First, signalObject.Last = connectionObject, connectionObject
 	else
 		connectionObject.Previous, signalObject.Last.Next, signalObject.Last = signalObject.Last, connectionObject, connectionObject
 	end
-	return connectionObject.Proxy
+	return setmetatable({[privateIndex] = connectionObject}, connectionMetatable)
 end
 
 signal.Once = function(proxy, callback)
-	if type(callback) ~= "function" then error("Attempt to connect failed: Passed value is not a function") end
-	local signalObject = proxy[signal]
+	if type(callback) ~= "function" then error("Attempt to connect failed: Passed value is not a function", 2) end
+	local signalObject = proxy[privateIndex]
 	local connectionObject = {}
 	connectionObject.Signal = proxy
 	connectionObject.Callback = callback
 	connectionObject.Once = true
-	connectionObject.Proxy = setmetatable({[connection] = connectionObject}, connectionMetatable)
-	local signalObject = proxy[signal]
-	if signalObject.Last == nil then
+	local signalObject = proxy[privateIndex]
+	if signalObject.First == nil then
 		signalObject.First, signalObject.Last = connectionObject, connectionObject
 	else
 		connectionObject.Previous, signalObject.Last.Next, signalObject.Last = signalObject.Last, connectionObject, connectionObject
 	end
-	return connectionObject.Proxy
+	return setmetatable({[privateIndex] = connectionObject}, connectionMetatable)
 end
 
 signal.Wait = function(proxy)
-	local signalObject = proxy[signal]
+	local signalObject = proxy[privateIndex]
 	local connectionObject = {}
 	connectionObject.Signal = proxy
 	connectionObject.Callback = coroutine.running()
 	connectionObject.Once = true
-	connectionObject.Proxy = setmetatable({[connection] = connectionObject}, connectionMetatable)
-	if signalObject.Last == nil then
+	if signalObject.First == nil then
 		signalObject.First, signalObject.Last = connectionObject, connectionObject
 	else
 		connectionObject.Previous, signalObject.Last.Next, signalObject.Last = signalObject.Last, connectionObject, connectionObject
@@ -86,18 +97,18 @@ signal.Wait = function(proxy)
 end
 
 signal.DisconnectAll = function(proxy)
-	local signalObject = proxy[signal]
+	local signalObject = proxy[privateIndex]
 	local connectionObject = signalObject.First
 	while connectionObject ~= nil do
 		connectionObject.Signal = nil
-		if type(connectionObject.Callback) == "thread" then coroutine.close(connectionObject.Callback) end
+		if type(connectionObject.Callback) == "thread" then task.cancel(connectionObject.Callback) end
 		connectionObject = connectionObject.Next
 	end
 	signalObject.First, signalObject.Last = nil, nil
 end
 
 signal.Fire = function(proxy, ...)
-	local signalObject = proxy[signal]
+	local signalObject = proxy[privateIndex]
 	local connectionObject = signalObject.First
 	while connectionObject ~= nil do
 		if connectionObject.Once == true then
@@ -107,35 +118,41 @@ signal.Fire = function(proxy, ...)
 			if connectionObject.Previous ~= nil then connectionObject.Previous.Next = connectionObject.Next end
 			if connectionObject.Next ~= nil then connectionObject.Next.Previous = connectionObject.Previous end
 		end
-		if type(connectionObject.Callback) == "function" then
+		if type(connectionObject.Callback) == "thread" then
+			task.spawn(connectionObject.Callback, ...)
+		else
 			local thread = table.remove(threads)
 			if thread == nil then thread = coroutine.create(Thread) coroutine.resume(thread) end
-			coroutine.resume(thread, thread, connectionObject.Callback, ...)
-		else
-			coroutine.resume(connectionObject.Callback, ...)
+			task.spawn(thread, thread, connectionObject.Callback, ...)			
 		end
 		connectionObject = connectionObject.Next
 	end
 end
 
-connectionMetatable.__metatable = "nil"
-connectionMetatable.__tostring = function(proxy) return "Connection Object" end
-connectionMetatable.__newindex = function(proxy, index, value) error("attempt to modify a readonly table") end
-connectionMetatable.__index = function(proxy, index)
-	if permissions[index] == nil then return end
-	return proxy[connection][index] or connection[index]
-end
 
+-- Connection
 connection.Disconnect = function(proxy)
-	local connectionObject = proxy[connection]
-	local signalObject = connectionObject.Signal[signal]
+	local connectionObject = proxy[privateIndex]
+	local signalObject = connectionObject.Signal[privateIndex]
 	if signalObject == nil then return end
 	connectionObject.Signal = nil
-	if type(connectionObject.Callback) == "thread" then coroutine.close(connectionObject.Callback) end
+	if type(connectionObject.Callback) == "thread" then task.cancel(connectionObject.Callback) end
 	if signalObject.First == connectionObject then signalObject.First = connectionObject.Next end
 	if signalObject.Last == connectionObject then signalObject.Last = connectionObject.Previous end
 	if connectionObject.Previous ~= nil then connectionObject.Previous.Next = connectionObject.Next end
 	if connectionObject.Next ~= nil then connectionObject.Next.Previous = connectionObject.Previous end
 end
 
-return setmetatable({}, constructorMetatable)
+
+-- Functions
+Thread = function()
+	while true do Call(coroutine.yield()) end
+end
+
+Call = function(thread, callback, ...)
+	callback(...)
+	table.insert(threads, thread)
+end
+
+
+return table.freeze(constructor) :: Constructor
