@@ -49,17 +49,17 @@ Returns a new signal object
 # Methods
 *SIGNAL OBJECT*
 ```lua
-Connect(unc: function)  connection
+Connect(func: function, arguments...: tuple)  connection
 ```
 Connects the given function to the event and returns an connection that represents it
 
 ```lua
-Once(func: function)  connection
+Once(func: function, arguments...: tuple)  connection
 ```
 Connects the given function to the event (for a single invocation) and returns an connection that represents it
 
 ```lua
-Wait()  Tuple
+Wait(arguments...: tuple)  tuple
 ```
 Yields the current thread until the signal fires and returns the arguments provided by the signal
 
@@ -72,6 +72,11 @@ Disconnects all connections from the signal
 Fire(arguments: Tuple)  nil
 ```
 Fires the event
+
+```lua
+FastFire(arguments: tuple)  nil
+```
+Fires the event without creating threads
 
 # Properties
 *CONNECTION OBJECT*
@@ -149,3 +154,18 @@ task.delay(10, signal.Fire, signal, "Hello world!")
 -- wait for the signal to fire then print it
 print(signal:Wait())
 ```
+
+# Arguments Example
+```lua
+local function Event(...)
+  print(...) -- Hello World Goodbye 69
+end
+
+local signalModule = require(11670710927)
+local signal = signalModule.new()
+signal:Connect(Event, "Goodbye", 69) -- connect to the signal and save the values Goodbye and 69 into the connection
+signal:Fire("Hello", "World")
+```
+
+#Update
+* you can now pass custom arguments into Connect, Once and Wait that will be past to the function when called
