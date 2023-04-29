@@ -1,4 +1,4 @@
--- Version: 0.4 (BETA)
+-- Version: 0.5 (BETA)
 
 local Thread, Call, AddConnection, RemoveConnection
 local signalMetatable, connectionMetatable, constructor, signalGet, signalSet, connectionGet, connectionSet
@@ -13,9 +13,9 @@ export type Constructor = {
 }
 
 export type Signal = {
-	Connect: (self: Signal, func: (...any) -> ()) -> Connection,
-	Once: (self: Signal, func: (...any) -> ()) -> Connection,
-	Wait: (self: Signal) -> ...any,
+	Connect: (self: Signal, func: (...any) -> (), ...any) -> Connection,
+	Once: (self: Signal, func: (...any) -> (), ...any) -> Connection,
+	Wait: (self: Signal, ...any) -> ...any,
 	Fire: (self: Signal, ...any) -> (),
 	FastFire: (self: Signal, ...any) -> (),
 	DisconnectAll: (self: Signal) -> (),
@@ -59,31 +59,37 @@ constructor = {
 
 -- Signal
 signalGet = {
-	["Connect"] = function(proxy, callback)
+	["Connect"] = function(proxy, callback, ...)
 		if type(callback) ~= "function" then error("Attempt to connect failed: Passed value is not a function", 3) end
+		local parameters = {...}
 		local connection = {
 			["Signal"] = proxy,
 			["Callback"] = callback,
 			["Once"] = false,
+			["Parameters"] = if #parameters == 0 then nil else parameters,
 		}
 		AddConnection(proxy[private], connection)
 		return setmetatable({[private] = connection}, connectionMetatable)
 	end,
-	["Once"] = function(proxy, callback)
+	["Once"] = function(proxy, callback, ...)
 		if type(callback) ~= "function" then error("Attempt to connect failed: Passed value is not a function", 3) end
+		local parameters = {...}
 		local connection = {
 			["Signal"] = proxy,
 			["Callback"] = callback,
 			["Once"] = true,
+			["Parameters"] = if #parameters == 0 then nil else parameters,
 		}
 		AddConnection(proxy[private], connection)
 		return setmetatable({[private] = connection}, connectionMetatable)
 	end,
-	["Wait"] = function(proxy)
+	["Wait"] = function(proxy, ...)
+		local parameters = {...}
 		local connection = {
 			["Signal"] = proxy,
 			["Callback"] = coroutine.running(),
 			["Once"] = true,
+			["Parameters"] = if #parameters == 0 then nil else parameters,
 		}
 		AddConnection(proxy[private], connection)
 		return coroutine.yield()
@@ -94,11 +100,21 @@ signalGet = {
 		while connection ~= nil do
 			if connection.Once == true then RemoveConnection(signal, connection) connection.Signal = nil end
 			if type(connection.Callback) == "thread" then
-				task.spawn(connection.Callback, ...)
+				if connection.Parameters == nil then
+					task.spawn(connection.Callback, ...)
+				else
+					local parameters = {...}
+					task.spawn(connection.Callback, table.unpack(table.move(connection.Parameters, 1, #connection.Parameters, #parameters + 1, parameters)))
+				end
 			else
 				local thread = table.remove(threads)
 				if thread == nil then thread = coroutine.create(Thread) coroutine.resume(thread) end
-				task.spawn(thread, thread, connection.Callback, ...)
+				if connection.Parameters == nil then
+					task.spawn(thread, thread, connection.Callback, ...)
+				else
+					local parameters = {...}
+					task.spawn(thread, thread, connection.Callback, table.unpack(table.move(connection.Parameters, 1, #connection.Parameters, #parameters + 1, parameters)))
+				end
 			end
 			connection = connection.Next
 		end
@@ -109,9 +125,19 @@ signalGet = {
 		while connection ~= nil do
 			if connection.Once == true then RemoveConnection(signal, connection) connection.Signal = nil end
 			if type(connection.Callback) == "thread" then
-				task.spawn(connection.Callback, ...)
+				if connection.Parameters == nil then
+					task.spawn(connection.Callback, ...)
+				else
+					local parameters = {...}
+					task.spawn(connection.Callback, table.unpack(table.move(connection.Parameters, 1, #connection.Parameters, #parameters + 1, parameters)))
+				end
 			else
-				connection.Callback(...)
+				if connection.Parameters == nil then
+					connection.Callback(...)
+				else
+					local parameters = {...}
+					connection.Callback(table.unpack(table.move(connection.Parameters, 1, #connection.Parameters, #parameters + 1, parameters)))
+				end
 			end
 			connection = connection.Next
 		end
