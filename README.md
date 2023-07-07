@@ -181,7 +181,7 @@ signal:Connect(Event, "Goodbye", 69) -- connect to the signal and save the value
 signal:Fire("Hello", "World")
 ```
 
-#Update version 1.0 is now out
+# Update version 1.0 is now out
 * added Connections property
 * added Connected callback to detect when the signal gets connections
 * improved proxy
